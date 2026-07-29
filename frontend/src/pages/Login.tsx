@@ -30,7 +30,7 @@ export const Login: React.FC = () => {
       navigate('/');
     } catch (err: any) {
       if (!err.response) {
-        setError('Cannot connect to backend server. Please ensure uvicorn is running on http://localhost:8000');
+        setError(`Cannot connect to backend server at ${API_URL}. If using Render free tier, the server may take up to 50s to wake up on the first request. Please try again in a moment.`);
       } else {
         const detail = err.response?.data?.detail;
         if (typeof detail === 'string') {

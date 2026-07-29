@@ -32,11 +32,10 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AI Interview Copilot API", version="1.0.0")
 
-# Setup CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For local development flexibility
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
