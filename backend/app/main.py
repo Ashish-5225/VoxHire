@@ -22,6 +22,7 @@ from app.schemas import (
     CodeEvaluationRequest, RoadmapResponse
 )
 from app.services import ai_service, rag_service
+from app.routes import copilot_routes
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +33,8 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="AI Interview Copilot API", version="1.0.0")
 
+app.include_router(copilot_routes.router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -39,6 +42,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/token")
 

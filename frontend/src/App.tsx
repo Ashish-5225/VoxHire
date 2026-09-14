@@ -10,6 +10,7 @@ import { MockInterview } from './pages/MockInterview';
 import { CodingInterview } from './pages/CodingInterview';
 import { Roadmap } from './pages/Roadmap';
 import { History } from './pages/History';
+import { JDCopilot } from './pages/JDCopilot';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, loading } = useAuth();
@@ -44,6 +45,14 @@ export const AppRoutes: React.FC = () => {
         }
       />
       <Route
+        path="/copilot"
+        element={
+          <ProtectedRoute>
+            <JDCopilot />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/resume"
         element={
           <ProtectedRoute>
@@ -51,6 +60,7 @@ export const AppRoutes: React.FC = () => {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/interview"
         element={

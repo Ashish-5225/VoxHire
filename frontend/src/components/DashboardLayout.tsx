@@ -26,12 +26,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
   const menuItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    { name: 'JD ML Copilot', path: '/copilot', icon: BrainCircuit },
     { name: 'Resume Analyzer', path: '/resume', icon: FileText },
     { name: 'Mock Interview', path: '/interview', icon: Mic },
     { name: 'Coding Arena', path: '/coding', icon: Code },
     { name: 'Learning Roadmap', path: '/roadmap', icon: GitFork },
     { name: 'History & Review', path: '/history', icon: History },
   ];
+
 
   const handleLogout = () => {
     logout();
