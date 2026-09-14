@@ -65,8 +65,8 @@ class BaselineQuestionClassifier:
             return self._heuristic_fallback(question_text)
 
         X = self.vectorizer.transform([question_text])
-        pred_cat = self.cat_classifier.predict(X)[0]
-        pred_diff = self.diff_classifier.predict(X)[0]
+        pred_cat = str(self.cat_classifier.predict(X)[0])
+        pred_diff = str(self.diff_classifier.predict(X)[0])
         
         # Probabilities
         cat_probs = self.cat_classifier.predict_proba(X)[0]
@@ -78,6 +78,7 @@ class BaselineQuestionClassifier:
             "confidence": round(confidence, 3),
             "model_type": "Baseline TF-IDF + Scikit-Learn"
         }
+
 
     def _heuristic_fallback(self, text: str) -> Dict[str, Any]:
         text_lower = text.lower()
