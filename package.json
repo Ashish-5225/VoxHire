@@ -7,5 +7,9 @@
   ],
   "scripts": {
     "build": "npm run build --prefix frontend"
+  },
+  "supportedArchitectures": {
+    "os": ["current", "linux"],
+    "cpu": ["current", "x64"]
   }
 }
