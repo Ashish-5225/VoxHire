@@ -20,7 +20,6 @@ import {
   Trash2,
   ListOrdered,
   BrainCircuit,
-  CheckCircle2,
   X,
   BookOpen
 } from 'lucide-react';
