@@ -36,12 +36,16 @@ class InterviewSession(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    type = Column(String, nullable=False)  # HR, Technical, Behavioral
-    role = Column(String, nullable=False)  # e.g., Frontend Engineer
+    type = Column(String, nullable=False)  # HR, Technical, Behavioral, System Design, etc.
+    role = Column(String, nullable=False)  # e.g., Backend Developer
+    difficulty = Column(String, default="Medium")  # Easy, Medium, Hard, Expert
+    round = Column(String, default="Technical Round 1")  # Screening, Technical Round 1, System Design, etc.
+    jd_text = Column(Text, nullable=True)  # Job Description text attached to session
     status = Column(String, default="active")  # active, completed
     score = Column(Float, default=0.0) # overall score out of 100
     feedback_summary = Column(Text, nullable=True) # text summary of session
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
     user = relationship("User", back_populates="interviews")
     messages = relationship("InterviewMessage", back_populates="session", cascade="all, delete-orphan")

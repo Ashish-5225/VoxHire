@@ -184,11 +184,14 @@ def start_interview(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Initialize a new session
+    # Initialize a new session with ML metadata
     session = InterviewSession(
         user_id=current_user.id,
         type=session_data.type,
         role=session_data.role,
+        difficulty=session_data.difficulty or "Medium",
+        round=session_data.round or "Technical Round 1",
+        jd_text=session_data.jd_text or "",
         status="active"
     )
     db.add(session)
@@ -199,19 +202,38 @@ def start_interview(
     resume = db.query(Resume).filter(Resume.user_id == current_user.id).first()
     resume_text = resume.raw_text if resume else ""
     
-    # Trigger first question
-    first_question = ai_service.generate_mock_interview_question(
-        resume_text=resume_text,
-        role=session.role,
-        type=session.type,
-        history=[]
+    # Process JD if provided
+    jd_info = {}
+    if session.jd_text and session.jd_text.strip():
+        from app.ml_copilot.jd_processor import process_job_description
+        jd_info = process_job_description(session.jd_text)
+    else:
+        from app.ml_copilot.jd_processor import process_job_description
+        jd_info = process_job_description(f"Role: {session.role}. Category: {session.type}")
+        
+    # Trigger initial grounded question via ML Copilot generator
+    from app.ml_copilot.generator import generate_personalized_interview_questions
+    generated_q_list = generate_personalized_interview_questions(
+        jd_info=jd_info,
+        candidate_resume=resume_text,
+        target_role=session.role,
+        interview_type=session.type,
+        difficulty=session.difficulty,
+        interview_round=session.round,
+        num_questions=1
     )
     
+    if generated_q_list:
+        top_q = generated_q_list[0]
+        first_question_text = top_q["question"]
+    else:
+        first_question_text = f"Hello! Welcome to your {session.difficulty} {session.type} mock interview for the role of {session.role}. Could you introduce yourself and walk me through your relevant technical background?"
+        
     # Save first AI question
     ai_msg = InterviewMessage(
         session_id=session.id,
         sender="ai",
-        text=first_question
+        text=first_question_text
     )
     db.add(ai_msg)
     db.commit()
@@ -243,12 +265,14 @@ def send_interview_message(
         InterviewMessage.sender == "ai"
     ).order_by(InterviewMessage.id.desc()).first()
     
-    # Evaluate user's answer
+    # Evaluate user's answer via ML Copilot Evaluator
+    from app.ml_copilot.evaluator import evaluate_candidate_answer
     evaluation = {}
     if last_ai_msg:
-        evaluation = ai_service.evaluate_response(
+        evaluation = evaluate_candidate_answer(
             question=last_ai_msg.text,
-            user_answer=message_data.text
+            user_answer=message_data.text,
+            jd_context=session.jd_text or f"Role: {session.role}"
         )
         
     # Save user response
@@ -266,43 +290,39 @@ def send_interview_message(
         InterviewMessage.session_id == session_id
     ).order_by(InterviewMessage.id.asc()).all()
     
-    history = [{"sender": m.sender, "text": m.text} for m in messages]
-    
     # Limit number of questions to 6 rounds (12 messages)
     if len(messages) >= 12:
-        # Prompt final review from user and stop
         ai_msg = InterviewMessage(
             session_id=session_id,
             sender="ai",
-            text="Thank you. That completes our mock session. Please click 'Complete Session' to view your detailed analytics review."
+            text="Thank you. That completes our mock session! Click 'Complete Session' to view your performance breakdown."
         )
         db.add(ai_msg)
         db.commit()
     else:
-        # Load resume if exists
         resume = db.query(Resume).filter(Resume.user_id == current_user.id).first()
         resume_text = resume.raw_text if resume else ""
         
-        # Incorporate RAG context from resume based on question topic
-        rag_context = ""
-        if resume_text:
-            rag_context = rag_service.query_resume_context(current_user.id, message_data.text)
-            
-        next_question_prompt_context = resume_text
-        if rag_context:
-            next_question_prompt_context += f"\n\nHighly relevant Resume context to probe: {rag_context}"
-            
-        next_question = ai_service.generate_mock_interview_question(
-            resume_text=next_question_prompt_context,
-            role=session.role,
-            type=session.type,
-            history=history
+        from app.ml_copilot.jd_processor import process_job_description
+        from app.ml_copilot.generator import generate_adaptive_followup_question
+        
+        jd_info = process_job_description(session.jd_text or f"Role: {session.role}")
+        
+        # Generate next question adaptively
+        adaptive_res = generate_adaptive_followup_question(
+            previous_question=last_ai_msg.text if last_ai_msg else "",
+            candidate_answer=message_data.text,
+            jd_info=jd_info,
+            candidate_resume=resume_text,
+            answer_evaluation=evaluation
         )
+        
+        next_question_text = adaptive_res.get("follow_up_question", "Can you elaborate on how you would handle production edge cases?")
         
         ai_msg = InterviewMessage(
             session_id=session_id,
             sender="ai",
-            text=next_question
+            text=next_question_text
         )
         db.add(ai_msg)
         db.commit()
@@ -312,6 +332,7 @@ def send_interview_message(
 
 
 @app.post("/api/v1/interview/{session_id}/end", response_model=InterviewSessionResponse)
+
 def end_interview(
     session_id: int,
     db: Session = Depends(get_db),

@@ -38,8 +38,11 @@ class ResumeResponse(BaseModel):
 
 # Interview schemas
 class InterviewSessionCreate(BaseModel):
-    type: str  # HR, Technical, Behavioral
+    type: str  # HR, Technical, Behavioral, System Design, etc.
     role: str
+    difficulty: Optional[str] = "Medium"
+    round: Optional[str] = "Technical Round 1"
+    jd_text: Optional[str] = ""
 
 class InterviewMessageCreate(BaseModel):
     text: str
@@ -60,6 +63,9 @@ class InterviewSessionResponse(BaseModel):
     user_id: int
     type: str
     role: str
+    difficulty: Optional[str] = "Medium"
+    round: Optional[str] = "Technical Round 1"
+    jd_text: Optional[str] = ""
     status: str
     score: float
     feedback_summary: Optional[str] = None
@@ -68,6 +74,7 @@ class InterviewSessionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class InterviewSessionListItem(BaseModel):
     id: int
