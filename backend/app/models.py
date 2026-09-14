@@ -41,6 +41,8 @@ class InterviewSession(Base):
     difficulty = Column(String, default="Medium")  # Easy, Medium, Hard, Expert
     round = Column(String, default="Technical Round 1")  # Screening, Technical Round 1, System Design, etc.
     jd_text = Column(Text, nullable=True)  # Job Description text attached to session
+    mode = Column(String, default="adaptive_agent")  # adaptive_agent, custom_questions
+    custom_questions_json = Column(Text, nullable=True)  # JSON list of custom questions if provided
     status = Column(String, default="active")  # active, completed
     score = Column(Float, default=0.0) # overall score out of 100
     feedback_summary = Column(Text, nullable=True) # text summary of session

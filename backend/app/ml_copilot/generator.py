@@ -182,3 +182,41 @@ def generate_adaptive_followup_question(
             "difficulty": "Medium",
             "rationale": "Fallback probing follow-up question."
         }
+
+
+def generate_question_hint_and_ideal_answer(
+    question: str,
+    user_draft: str = "",
+    jd_info: Dict[str, Any] = None,
+    candidate_resume: str = ""
+) -> Dict[str, Any]:
+    """
+    Generate live AI hints, key target concepts, and model answer outline for a candidate during an active interview.
+    """
+    jd_context = jd_info.get('cleaned_text', '')[:500] if jd_info else ""
+    prompt = f"""
+    You are an expert tech lead and interview mentor.
+    Provide actionable hints and structured target response guidance for the following interview question.
+
+    Interview Question: "{question}"
+    Candidate Draft Response (Optional): "{user_draft}"
+    Job Description Context: {jd_context}
+
+    Return JSON:
+    {{
+        "hint": "Focus on explaining the core trade-off between consistency and availability (CAP Theorem). Mention how index design affects write latency.",
+        "key_concepts": ["CAP Theorem", "DB Indexing", "Write Bottlenecks", "Partitioning"],
+        "ideal_answer_structure": "1. Define the problem & high-level architecture.\\n2. Detail data persistence & indexing trade-offs.\\n3. Address edge cases like replication lag and failover handling."
+    }}
+    """
+    try:
+        response_text = ai_service.get_ai_response(prompt, response_mime_type="application/json")
+        return json.loads(response_text)
+    except Exception as e:
+        logger.error(f"Error generating hint: {str(e)}")
+        return {
+            "hint": "Break your answer into: 1. Core concept definition, 2. Practical trade-offs, 3. Real-world example from your projects.",
+            "key_concepts": ["Core Concept", "Practical Implementation", "Trade-offs"],
+            "ideal_answer_structure": "Outline the main principle first, explain architectural considerations, and conclude with monitoring or performance optimization."
+        }
+

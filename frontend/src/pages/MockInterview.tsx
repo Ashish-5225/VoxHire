@@ -14,9 +14,16 @@ import {
   User as UserIcon, 
   RefreshCw,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  Lightbulb,
+  Plus,
+  Trash2,
+  ListOrdered,
+  BrainCircuit,
+  CheckCircle2,
+  X,
+  BookOpen
 } from 'lucide-react';
-
 import { Link } from 'react-router-dom';
 
 interface Message {
@@ -45,6 +52,7 @@ interface InterviewSession {
   difficulty?: string;
   round?: string;
   jd_text?: string;
+  mode?: string;
   status: string;
   score?: number;
   feedback_summary?: string;
@@ -52,15 +60,24 @@ interface InterviewSession {
 }
 
 export const MockInterview: React.FC = () => {
+  // Session Configuration State
+  const [mode, setMode] = useState<'adaptive_agent' | 'custom_questions'>('adaptive_agent');
   const [role, setRole] = useState('Backend Developer');
   const [type, setType] = useState('Technical');
   const [difficulty, setDifficulty] = useState('Medium');
   const [interviewRound, setInterviewRound] = useState('Technical Round 1');
   const [jdText, setJdText] = useState('');
 
+  // Custom Question Bank state
+  const [customQuestions, setCustomQuestions] = useState<string[]>([]);
+  const [customInput, setCustomInput] = useState('');
+  const [selectedPresetPack, setSelectedPresetPack] = useState('');
+
+  // Audio / Speech State
   const [voiceMode, setVoiceMode] = useState(true);
   const [autoSpeak, setAutoSpeak] = useState(true);
   
+  // Session State
   const [session, setSession] = useState<InterviewSession | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -68,6 +85,15 @@ export const MockInterview: React.FC = () => {
   const [starting, setStarting] = useState(false);
   const [ending, setEnding] = useState(false);
   
+  // Live AI Hint Modal state
+  const [hintLoading, setHintLoading] = useState(false);
+  const [activeHint, setActiveHint] = useState<{
+    hint: string;
+    key_concepts: string[];
+    ideal_answer_structure?: string;
+  } | null>(null);
+  const [showHintModal, setShowHintModal] = useState(false);
+
   // Voice Recording state
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -134,8 +160,52 @@ export const MockInterview: React.FC = () => {
     }
   };
 
-  // Quick Preset Handlers
-  const applyPreset = (presetType: string) => {
+  // Preset topic packs for Custom Question Bank
+  const TOPIC_PRESETS: Record<string, { label: string; questions: string[] }> = {
+    system_design: {
+      label: 'System Design & Architecture',
+      questions: [
+        'Design a high-throughput, low-latency URL Shortener service handling 100M daily active users.',
+        'How would you design a distributed rate-limiting service across multiple microservice gateways?',
+        'Explain how you would handle data consistency and replication lag in a multi-region database cluster.'
+      ]
+    },
+    java_backend: {
+      label: 'Java & Spring Boot Backend',
+      questions: [
+        'How does Java Garbage Collection work under the hood, and what are the key differences between G1GC and ZGC?',
+        'Explain thread safety in Java: how do volatile, synchronized, and ReentrantLock differ in performance?',
+        'How do you implement distributed transactions across microservices using the Saga Pattern?'
+      ]
+    },
+    react_frontend: {
+      label: 'React & Web Engineering',
+      questions: [
+        'Explain how React Fiber reconciliation works and how Concurrent Mode improves rendering performance.',
+        'What strategies do you use to optimize Core Web Vitals (LCP, INP, CLS) in a large-scale frontend app?',
+        'Compare Redux Toolkit, Zustand, and Context API for state management and persistence.'
+      ]
+    },
+    ml_engineering: {
+      label: 'Machine Learning & MLOps',
+      questions: [
+        'Explain the Self-Attention mechanism in Transformer architectures and why multi-head attention is essential.',
+        'How do you address catastrophic forgetting and hallucination when fine-tuning Large Language Models?',
+        'What metrics and evaluation pipelines do you use to assess RAG retrieval quality and generation accuracy?'
+      ]
+    },
+    behavioral_star: {
+      label: 'Behavioral & STAR Leadership',
+      questions: [
+        'Tell me about a time you experienced a major architectural disagreement with your team. How did you resolve it?',
+        'Describe a high-severity production outage you triaged. What was the root cause and remediation?',
+        'Give an example of a high-pressure project where requirements changed rapidly. How did you keep stakeholders aligned?'
+      ]
+    }
+  };
+
+  // Preset role appliers
+  const applyRolePreset = (presetType: string) => {
     if (presetType === 'backend') {
       setRole('Backend Developer');
       setType('Technical');
@@ -155,6 +225,24 @@ export const MockInterview: React.FC = () => {
     }
   };
 
+  // Add Custom Question to Queue
+  const handleAddCustomQuestion = () => {
+    if (!customInput.trim()) return;
+    setCustomQuestions((prev) => [...prev, customInput.trim()]);
+    setCustomInput('');
+  };
+
+  const handleRemoveCustomQuestion = (index: number) => {
+    setCustomQuestions((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleApplyPresetPack = (packKey: string) => {
+    setSelectedPresetPack(packKey);
+    if (packKey && TOPIC_PRESETS[packKey]) {
+      setCustomQuestions(TOPIC_PRESETS[packKey].questions);
+    }
+  };
+
   const handleStartSession = async (e: React.FormEvent) => {
     e.preventDefault();
     setStarting(true);
@@ -164,7 +252,9 @@ export const MockInterview: React.FC = () => {
         type,
         difficulty,
         round: interviewRound,
-        jd_text: jdText
+        jd_text: jdText,
+        mode,
+        custom_questions: mode === 'custom_questions' ? customQuestions : []
       });
 
       const newSession = response.data;
@@ -247,6 +337,31 @@ export const MockInterview: React.FC = () => {
     }
   };
 
+  const handleRequestHint = async () => {
+    if (!session || hintLoading) return;
+    const lastAiMsg = [...messages].reverse().find(m => m.sender === 'ai');
+    if (!lastAiMsg) return;
+
+    setHintLoading(true);
+    setShowHintModal(true);
+    try {
+      const res = await axios.post(`${API_URL}/api/v1/interview/${session.id}/hint`, {
+        question: lastAiMsg.text,
+        user_draft: inputText
+      });
+      setActiveHint(res.data);
+    } catch (err) {
+      console.error('Error fetching hint', err);
+      setActiveHint({
+        hint: 'Structure your answer around: 1. Core concept definition, 2. Architecture & trade-offs, 3. Practical handling of edge cases.',
+        key_concepts: ['Definition & Principles', 'Architectural Trade-offs', 'Production Edge Cases'],
+        ideal_answer_structure: 'Start with high-level architecture, dive into specific technical mechanisms, and conclude with monitoring or performance trade-offs.'
+      });
+    } finally {
+      setHintLoading(false);
+    }
+  };
+
   const handleEndSession = async () => {
     if (!session) return;
     setEnding(true);
@@ -264,7 +379,7 @@ export const MockInterview: React.FC = () => {
   // Render Session Setup form
   if (!session) {
     return (
-      <div className="max-w-3xl mx-auto space-y-8 animate-fade-in py-4">
+      <div className="max-w-4xl mx-auto space-y-8 animate-fade-in py-4">
         <div className="text-center space-y-3">
           <div className="inline-flex p-4 rounded-3xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 mb-2">
             <Mic className="h-10 w-10 animate-pulse" />
@@ -273,11 +388,45 @@ export const MockInterview: React.FC = () => {
             AI Voice & Adaptive Mock Interview
           </h1>
           <p className="text-slate-400 text-sm max-w-xl mx-auto">
-            Simulate realistic, JD-grounded technical and behavioral interviews. Receive instant evaluation on technical depth, completeness, and missing concepts.
+            Simulate realistic technical and behavioral interviews with real-time speech evaluation, adaptive AI follow-up questions, and custom question banks.
           </p>
         </div>
 
         <div className="glass-premium p-8 rounded-3xl border border-slate-800/80 shadow-2xl space-y-6">
+          {/* Mode Switcher Tabs */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+              Select Interview Mode
+            </label>
+            <div className="grid grid-cols-2 gap-3 p-1.5 bg-slate-900/80 rounded-2xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setMode('adaptive_agent')}
+                className={`py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                  mode === 'adaptive_agent'
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-950/50'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <BrainCircuit className="h-4 w-4" />
+                <span>Autonomous AI Agent (Adaptive)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMode('custom_questions')}
+                className={`py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                  mode === 'custom_questions'
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-950/50'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <ListOrdered className="h-4 w-4" />
+                <span>Custom Question Bank / Topic Packs</span>
+              </button>
+            </div>
+          </div>
+
           {/* Quick Presets */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
@@ -293,7 +442,7 @@ export const MockInterview: React.FC = () => {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => applyPreset(p.id)}
+                  onClick={() => applyRolePreset(p.id)}
                   className="py-2.5 px-3 rounded-xl bg-slate-900/60 hover:bg-indigo-600/20 border border-slate-800 hover:border-indigo-500/30 text-xs font-semibold text-slate-300 transition-all text-center"
                 >
                   {p.label}
@@ -365,6 +514,78 @@ export const MockInterview: React.FC = () => {
                 </select>
               </div>
             </div>
+
+            {/* Custom Question Bank UI */}
+            {mode === 'custom_questions' && (
+              <div className="space-y-4 p-5 rounded-2xl bg-indigo-950/20 border border-indigo-500/30">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <BookOpen className="h-4 w-4 text-indigo-400" />
+                    <span>Custom Question Queue ({customQuestions.length} Questions)</span>
+                  </h3>
+                  <span className="text-xs text-indigo-300">Pick a preset topic or add your own</span>
+                </div>
+
+                {/* Preset Topic Selection */}
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                    Pre-defined Topic Question Packs
+                  </label>
+                  <select
+                    value={selectedPresetPack}
+                    onChange={(e) => handleApplyPresetPack(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-medium"
+                  >
+                    <option value="">-- Select a Question Pack --</option>
+                    {Object.entries(TOPIC_PRESETS).map(([key, pack]) => (
+                      <option key={key} value={key}>{pack.label} ({pack.questions.length} questions)</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Add Custom Question Input */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter custom interview question..."
+                    value={customInput}
+                    onChange={(e) => setCustomInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomQuestion(); } }}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomQuestion}
+                    className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all flex items-center gap-1.5"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add</span>
+                  </button>
+                </div>
+
+                {/* List of Queued Questions */}
+                {customQuestions.length > 0 ? (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {customQuestions.map((q, idx) => (
+                      <div key={idx} className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between text-xs text-slate-200 gap-3">
+                        <span className="font-semibold text-indigo-400 shrink-0">Q{idx + 1}.</span>
+                        <span className="flex-1 line-clamp-2">{q}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCustomQuestion(idx)}
+                          className="p-1 text-slate-500 hover:text-rose-400 transition-colors shrink-0"
+                          title="Remove Question"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">No custom questions added yet. Add custom questions above or select a pre-defined pack.</p>
+                )}
+              </div>
+            )}
 
             {/* Optional JD Input */}
             <div>
@@ -445,6 +666,9 @@ export const MockInterview: React.FC = () => {
               <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 font-medium">
                 {session.difficulty || 'Medium'}
               </span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                {session.mode === 'custom_questions' ? 'Custom Queue' : 'AI Adaptive Agent'}
+              </span>
             </h2>
             <p className="text-xs text-slate-400">
               Status: <span className={session.status === 'active' ? 'text-emerald-400 font-semibold' : 'text-slate-300'}>{session.status.toUpperCase()}</span>
@@ -453,6 +677,18 @@ export const MockInterview: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {session.status === 'active' && (
+            <button
+              onClick={handleRequestHint}
+              disabled={hintLoading}
+              className="px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-2 transition-all"
+              title="Request AI Hint & Ideal Answer Guidance"
+            >
+              <Lightbulb className={`h-4 w-4 ${hintLoading ? 'animate-spin' : 'text-amber-400'}`} />
+              <span className="hidden sm:inline">Request AI Hint</span>
+            </button>
+          )}
+
           <button
             onClick={() => setAutoSpeak(!autoSpeak)}
             className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2 transition-all ${
@@ -477,6 +713,72 @@ export const MockInterview: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Live AI Hint Modal */}
+      {showHintModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass-premium max-w-lg w-full p-6 rounded-3xl border border-indigo-500/30 shadow-2xl space-y-4 animate-scale-in">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-base">
+                <Lightbulb className="h-5 w-5" />
+                <span>AI Interviewer Hint & Target Concepts</span>
+              </div>
+              <button
+                onClick={() => setShowHintModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {hintLoading ? (
+              <div className="py-8 text-center space-y-3">
+                <RefreshCw className="h-8 w-8 text-indigo-400 animate-spin mx-auto" />
+                <p className="text-xs text-slate-400">AI Mentor is analyzing question trade-offs & formulating hints...</p>
+              </div>
+            ) : activeHint ? (
+              <div className="space-y-4 text-xs">
+                {/* Strategic Hint */}
+                <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-500/30 text-amber-200 leading-relaxed">
+                  <span className="font-bold uppercase tracking-wider text-[10px] text-amber-400 block mb-1">Strategic Hint</span>
+                  {activeHint.hint}
+                </div>
+
+                {/* Key Concepts */}
+                {activeHint.key_concepts && activeHint.key_concepts.length > 0 && (
+                  <div>
+                    <span className="font-bold uppercase tracking-wider text-[10px] text-slate-400 block mb-1.5">Key Concepts to Mention</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {activeHint.key_concepts.map((concept, idx) => (
+                        <span key={idx} className="px-2.5 py-1 rounded-lg bg-indigo-950/60 border border-indigo-500/30 text-indigo-300 font-semibold text-[11px]">
+                          {concept}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Ideal Response Structure */}
+                {activeHint.ideal_answer_structure && (
+                  <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 text-slate-200 leading-relaxed">
+                    <span className="font-bold uppercase tracking-wider text-[10px] text-indigo-400 block mb-1">Recommended Response Outline</span>
+                    <p className="whitespace-pre-wrap font-mono text-[11px]">{activeHint.ideal_answer_structure}</p>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setShowHintModal(false)}
+                className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-500"
+              >
+                Got It, Continue Answer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Completed Summary Banner if session is finished */}
       {session.status === 'completed' && (

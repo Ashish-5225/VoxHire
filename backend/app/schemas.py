@@ -43,6 +43,8 @@ class InterviewSessionCreate(BaseModel):
     difficulty: Optional[str] = "Medium"
     round: Optional[str] = "Technical Round 1"
     jd_text: Optional[str] = ""
+    mode: Optional[str] = "adaptive_agent"  # "adaptive_agent" or "custom_questions"
+    custom_questions: Optional[List[str]] = []
 
 class InterviewMessageCreate(BaseModel):
     text: str
@@ -66,6 +68,7 @@ class InterviewSessionResponse(BaseModel):
     difficulty: Optional[str] = "Medium"
     round: Optional[str] = "Technical Round 1"
     jd_text: Optional[str] = ""
+    mode: Optional[str] = "adaptive_agent"
     status: str
     score: float
     feedback_summary: Optional[str] = None
@@ -74,6 +77,16 @@ class InterviewSessionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class InterviewHintRequest(BaseModel):
+    question: str
+    user_draft: Optional[str] = ""
+
+class InterviewHintResponse(BaseModel):
+    hint: str
+    key_concepts: List[str] = []
+    ideal_answer_structure: Optional[str] = ""
 
 
 class InterviewSessionListItem(BaseModel):
