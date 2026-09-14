@@ -11,6 +11,7 @@ import { CodingInterview } from './pages/CodingInterview';
 import { Roadmap } from './pages/Roadmap';
 import { History } from './pages/History';
 import { JDCopilot } from './pages/JDCopilot';
+import { Analytics } from '@vercel/analytics/react';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, loading } = useAuth();
@@ -104,6 +105,7 @@ export default function App() {
     <AuthProvider>
       <Router>
         <AppRoutes />
+        <Analytics />
       </Router>
     </AuthProvider>
   );
