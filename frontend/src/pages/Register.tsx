@@ -23,6 +23,8 @@ export const Register: React.FC = () => {
         username,
         email,
         password
+      }, {
+        timeout: 15000
       });
 
       setSuccess(true);

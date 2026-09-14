@@ -23,7 +23,8 @@ export const Login: React.FC = () => {
       formData.append('password', password);
 
       const response = await axios.post(`${API_URL}/api/v1/auth/token`, formData, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 15000
       });
 
       await login(response.data.access_token);
