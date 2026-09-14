@@ -38,9 +38,12 @@ jobs:
 
       - name: Build Frontend Application
         working-directory: ./frontend
-        run: npm run build
+        run: |
+          npm run build
+          touch dist/.nojekyll
 
       - name: Upload GitHub Pages Artifact
+
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./frontend/dist
