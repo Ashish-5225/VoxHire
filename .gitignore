@@ -8,6 +8,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.db
+backend/*.db
+.vercel/
 venv/
 .venv/
 
@@ -22,3 +24,4 @@ build/
 .DS_Store
 .vscode/
 .idea/
+.vercel

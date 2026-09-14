@@ -30,7 +30,7 @@ export const Login: React.FC = () => {
       navigate('/');
     } catch (err: any) {
       if (!err.response) {
-        setError(`Cannot connect to backend server at ${API_URL}. If using Render free tier, the server may take up to 50s to wake up on the first request. Please try again in a moment.`);
+        setError(`Cannot connect to backend server at ${API_URL || 'current domain'}. Please start the backend server locally (uvicorn on port 8000) or complete the Vercel deployment.`);
       } else {
         const detail = err.response?.data?.detail;
         if (typeof detail === 'string') {
